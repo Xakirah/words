@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Word Details</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link href='{{ url_for("static", filename="style.css") }}' rel="stylesheet">
+  </head>
+  <style>
+    /* Tambahkan gaya CSS Anda di sini */
+  </style>
+  <script>
+    let word = '{{ word }}';
+
+    $(document).ready(function() {
+        $('#btn-save').click(function() {
+            save_word();
+        });
+        $('#btn-delete').click(function() {
+            delete_word();
+        });
+        get_examples();
+    });
+
+    function save_word() {
+        let defs = {{ definitions | tojson }};
+
+        for (let i = 0; i < defs.length; i++) {
+          let def = defs[i];
+          let category = def.fl;
+          let shortdef = def.shortdef[0];
+          let date = def.date;
+
+          defs[i] = {
+            category: category,
+            shortdef: shortdef,
+            date: date,
+          }
+        }
+
+        let data = {
+            word_give: word,
+            definitions_give: defs,
+        };
+        $.ajax({
+            type: 'POST',
+            url: '/api/save_word',
+            data: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            success: function(response) {
+                if (response.result === 'success') {
+                    alert(response.msg);
+                    window.location.href = `/detail/${word}?status_give=old`;
+                } else {
+                    alert('Something went wrong');
+                }
+            }
+        });
+    }
+
+    function delete_word() {
+        let data = {
+            word_give: word,
+        };
+        $.ajax({
+            type: 'POST',
+            url: '/api/delete_word',
+            data: JSON.stringify(data),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            success: function(response) {
+                if (response.result === 'success') {
+                    alert(response.msg);
+                    window.location.href = '/';
+                } else {
+                    alert('Something went wrong');
+                }
+            }
+        });
+    }
+
+    function get_examples() {
+        $("#example-list").empty();
+        $.ajax({
+            type: "GET",
+            url: `/api/get_exs?word=${word}`,
+            success: function(response) {
+                if (response.result === 'success') {
+                    let examples = response.examples;
+                    examples.forEach(function(ex) {
+                        $("#example-list").append(
+                            `<li>${ex.example}&nbsp;&nbsp;&nbsp;<a href="javascript:delete_ex('${ex.id}')">delete</a></li>`
+                        );
+                    });
+                } else {
+                    alert('Failed to fetch examples');
+                }
+            }
+        });
+    }
+
+    function add_ex() {
+        let new_ex = $('#new-example').val();
+        $.ajax({
+            type: "POST",
+            url: `/api/save_ex`,
+            data: JSON.stringify({
+                example: new_ex,
+                word: word,
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            success: function(response) {
+                if (response.result === 'success') {
+                    $('#new-example').val('');
+                    get_examples();
+                } else {
+                    alert('Failed to save example');
+                }
+            }
+        });
+    }
+
+    function delete_ex(id) {
+        $.ajax({
+            type: "POST",
+            url: `/api/delete_ex`,
+            data: JSON.stringify({
+                word: word,
+                id: id,
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            success: function(response) {
+                if (response.result === 'success') {
+                    get_examples();
+                } else {
+                    alert('Failed to delete example');
+                }
+            }
+        });
+    }
+  </script>
+
+  <body>
+    <div class="wrap">
+      <div class="banner" onclick="window.location.href = '/'">
+      </div>
+      <div class="container">
+        <div class="d-flex justify-content-between align-items-end">
+          <div>
+            <h1 id="word" style="display: inline">{{ word }}</h1>
+          </div>
+        </div>
+        <hr />
+        <div id="definition">
+          {% if definitions %}
+            {% for def in definitions %}
+              {% if def.fl and def.shortdef %}
+                <div style="padding: 10px">
+                  <i>{{ def.fl }}</i>
+                  <br />
+                  {{ def.shortdef[0] }}
+                  <br />
+                  <span class="example">{{ def.date }}</span>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <p>No definitions found.</p>
+          {% endif %}
+        </div>
+        <hr />
+        {% if status == 'new' %}
+          <button id="btn-save" class="btn btn-sparta-outline btn-lg">
+            SAVE
+          </button>
+        {% else %}
+          <button id="btn-delete" class="btn btn-sparta btn-lg">
+            DELETE
+          </button>
+        {% endif %}
+      </div>
+
+      <div id="examples" class="container">
+        <h3 style="text-align: center;margin-bottom:1rem">Write your own sentences!</h3>
+        <ul id="example-list">
+        </ul>
+        <div class="d-flex justify-content-between" style="margin-left:20px;">
+            <input id="new-example" class="form-control form-control-sm" style="margin-right: 0.5rem">
+            <button class="btn btn-outline-secondary btn-sm" onclick="add_ex()">add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <footer class="py-3 my-4">
+        <ul class="nav justify-content-center border-bottom pb-3 mb-3">
+          <li class="nav-item"><a href="/" class="nav-link px-2 text-body-secondary">HOME PAGE</a></li>
+        </ul>
+        <p class="text-center text-body-secondary">© 2024 Haris</p>
+      </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  </body>
+</html>
